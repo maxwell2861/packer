@@ -1,0 +1,105 @@
+
+{
+	"variables": {
+			"prefix":			  "",
+			"windows_platform":   "2016",
+			"client_id":          "",
+			"client_secret":      "",
+            "tenant_id":          "",    
+            "subscription_id": 	  "",
+            "azman_pass" :		  "",
+			"resource_group_name": "RG-{{user `prefix` | upper}}-IMG",
+            "location":           "",    
+			"user_script_src":	  "../script/windows",
+			"user_chef_src": 	  "../package/windows/chef",
+			"user_pkg_src": 	  "../package/windows/nxm",
+			"user_script_src": 	  "../package/windows/script",
+			"user_scr_dst": 	  "c:/maxwell/script",
+			"user_pkg_dst":       "c:/maxwell"
+	  },
+    "builders": [
+        {
+            "type": "azure-arm",
+            "client_id": 		"{{user `client_id`}}",
+            "client_secret": 	"{{user `client_secret`}}",
+            "tenant_id": 		"{{user `tenant_id`}}",
+            "subscription_id": 	"{{user `subscription_id`}}",
+			"managed_image_resource_group_name": "{{user `resource_group_name`}}",
+            "managed_image_name": "{{user `prefix`}}_windows_{{user `windows_platform`}}_base_{{timestamp}}",
+            "os_type": "Windows",
+            "os_disk_size_gb": 128,
+            "image_publisher": "MicrosoftWindowsServer",
+            "image_offer": "WindowsServer",
+            "image_sku": "2016-Datacenter",
+            "communicator":   "winrm",
+            "winrm_use_ssl":  "true",
+            "winrm_insecure": "true",
+            "winrm_timeout":  "10m",
+            "winrm_username": "packer",    
+            "shared_image_gallery_timeout": "1h20m",
+            "async_resourcegroup_delete": true,     
+            "azure_tags": {
+				"packer_build": "true",
+				"role":"windows_base"
+            },
+            "location": "{{user `location`}}",
+            "vm_size": "Standard_F4s"
+        }
+    ],
+    "provisioners": [
+        {
+            "type": "powershell",
+            "inline": [
+                "New-Item -Path 'C:\\' -ItemType 'Directory' -Name 'maxwell'",
+                "New-Item -Path 'C:\\maxwell' -ItemType 'Directory' -Name 'now'",
+                "New-Item -Path 'C:\\maxwell' -ItemType 'Directory' -Name 'script'",
+                "New-Item -Path 'C:\\maxwell' -ItemType 'Directory' -Name 'package'",
+                "New-Item -Path 'C:\\maxwell' -ItemType 'Directory' -Name 'nsmon'",
+                "New-Item -Path 'C:\\maxwell' -ItemType 'Directory' -Name 'nsos'"
+            ]
+        },
+        {
+             "type": "file",
+              "source":      "{{user `user_chef_src`}}/chef.zip",
+              "destination": "{{user `user_pkg_dst`}}/",
+              "direction":   "upload",
+              "timeout": "10m"
+        },
+        {
+            "type": "file",
+             "source":      "{{user `user_pkg_src`}}/",
+             "destination": "{{user `user_pkg_dst`}}",
+             "direction":   "upload",
+             "timeout": "10m"
+        },
+        {
+            "type": "file",
+             "source":      "{{user `user_script_src`}}/",
+             "destination": "{{user `user_scr_dst`}}",
+             "direction":   "upload",
+             "timeout": "10m"
+        },
+        {
+            "type": "powershell",
+            "scripts": "{{user `user_script_src`}}/init/azure_bootstrap.ps1"
+		},
+        {
+            "type": "powershell",
+            "environment_vars":  "PREFIX={{user `prefix`}}",
+            "scripts": "{{user `user_script_src`}}/common/azure_common_base.ps1"
+		},
+        {
+            "type": "powershell",
+            "environment_vars":  "PREFIX={{user `prefix`}}",
+            "scripts": "{{user `user_script_src`}}/package/common_package.ps1"
+        },
+        {
+            "type": "powershell",
+            "scripts":  "{{user `user_script_src`}}/package/azure_choco_package.ps1"
+        },
+        {
+            "type": "powershell",
+            "scripts": "{{user `user_script_src`}}/sysprep/azure_sysprep.ps1"
+        }
+        ]
+}

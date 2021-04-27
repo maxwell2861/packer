@@ -1,0 +1,87 @@
+{
+	"variables": {
+		"prefix":			  "",
+		"organization_code":  "",
+		"platform":			  "amazon_linux2",
+		"role":				  "base",
+		"aws_access_key":     "",
+		"aws_secret_key":     "",
+		"aws_default_region": "",
+		"instance_type": 	  "",
+		"ssh_username": 	  "ec2-user",
+		"os_username":        "",
+		"s3bucket_name":      "{{user `organization_code`}}-{{user `prefix`}}-common",
+		"user_package_src":   "../package/linux",
+		"user_script_src": 	  "../script/linux",
+		"os_script_dst":      "."
+		},
+	"builders": [{
+		"type": 			"amazon-ebs",
+		"access_key": 		"{{user `aws_access_key`}}",
+		"secret_key": 		"{{user `aws_secret_key`}}",
+		"region": 	  		"{{user `aws_default_region`}}",
+		"instance_type": 	"{{user `instance_type`}}",
+		"source_ami_filter": {
+		"filters": {
+		"virtualization-type": "hvm",
+		"architecture":"x86_64",
+		"name": "amzn2-ami-hvm-*",
+		"root-device-type": "ebs"
+		},
+		"owners": "amazon",
+		"most_recent": true
+		},
+		"launch_block_device_mappings": [
+			{
+				"device_name": "/dev/xvda",
+				"volume_size": 50,
+				"volume_type": "gp2",
+				"delete_on_termination": true
+			}
+		],
+	  "user_data_file": "{{user `os_script_src`}}/init/aws_bootstrap.sh",
+	  "ssh_username"  : "{{user `ssh_username`}}",
+	  "ssh_timeout": "15m",
+	  "ami_name": "{{user `prefix`}}_{{user `platform`}}_{{user `role`}}_{{timestamp}}",
+	  "tags" :{"Name": "{{user `prefix`}}_{{user `platform`}}_{{user `role`}}"}
+	}
+],
+"provisioners": [
+	{
+		"type": "shell",
+		"execute_command": "echo {{user `ssh_username`}} | {{ .Vars }} sudo -E -S sh '{{ .Path }}'",
+		"inline": [
+				"mkdir -p  {{user `os_script_dst`}}/{script,package}",
+				"chmod a+w {{user `os_script_dst`}}/{script,package}"
+		]
+	},
+	{
+		"type": "file",
+		"source": "{{user `user_script_src`}}/",
+		"destination": "{{user `os_script_dst`}}/script",
+		"direction": "upload"
+	},
+	{
+		"type": "file",
+		"source": "{{user `user_package_src`}}/",
+		"destination": "{{user `os_script_dst`}}/package",
+		"direction": "upload"
+	},
+	{
+		"type": "shell",
+		"execute_command": "echo {{user `ssh_username`}} | {{ .Vars }} sudo -E -S sh '{{ .Path }}'",
+		"environment_vars": [
+			"PREFIX={{user `prefix`}}",
+			"AWS_ACCESS_KEY_ID={{user `aws_access_key`}}",
+			"AWS_SECRET_ACCESS_KEY={{user `aws_secret_key`}}",
+			"AWS_DEFAULT_REGION={{user `aws_default_region`}}",
+			"OS_USER={{user `os_username`}}",
+			"S3BUCKET={{user `s3bucket_name`}}"
+		],
+		"inline": [
+			"sh {{user `os_script_dst`}}/script/common/common_{{user `platform`}}_{{user `role`}}.sh",
+			"sh {{user `os_script_dst`}}/script/package/install_{{user `platform`}}_{{user `role`}}.sh"
+	]
+	}
+]
+}

@@ -1,0 +1,98 @@
+{
+	"variables": {
+		"prefix":			  "",
+		"platform":			  "centos_7",
+		"role":				  "sysgate",
+		"client_id":          "",
+		"client_secret":      "",
+		"tenant_id":          "",    
+		"subscription_id": 	  "",
+
+		"storage_account":    "",
+		"storage_key":    	  "",
+		"resource_group_name": "RG-{{user `prefix` | upper}}-IMG",
+		"instance_type":   	  "Standard_F4s",
+		"location":           "",   
+		"se_username":        "",
+		"dba_username":       "",
+		"dev_username":       "",
+		"user_chef_src": 	  "../package/linux/chef",
+		"user_nxm_src": 	  "../package/linux/nxm",
+		"user_script_src":    	  "../package/linux/script",
+		"os_script_src":    "../script/linux",
+		"os_script_dst":      "."
+		},
+    "builders": [
+        {
+            "type": "azure-arm",
+            "client_id": 		"{{user `client_id`}}",
+            "client_secret": 	"{{user `client_secret`}}",
+            "tenant_id": 		"{{user `tenant_id`}}",
+            "subscription_id": 	"{{user `subscription_id`}}",	   
+			"managed_image_resource_group_name": "{{user `resource_group_name`}}",
+            "managed_image_name": "{{user `prefix`}}_centos7_{{user `role`}}_{{timestamp}}",   
+			"os_type": "Linux",
+			"os_disk_size_gb": 30,
+            "image_publisher": "OpenLogic",
+            "image_offer": 	   "CentOS",
+			"image_sku": 	   "7.5",
+			"image_version":   "latest",
+			"shared_image_gallery_timeout": "1h20m",
+			"async_resourcegroup_delete": true,
+            "azure_tags": {
+				"packer_build": "true",
+				"role":"{{user `role`}}"
+            },
+            "location": "{{user `location`}}",
+            "vm_size": "{{user `instance_type`}}"
+        }
+    ],
+"provisioners": [
+	{
+		"type": "shell",
+		"execute_command": "chmod +x {{ .Path }}; {{ .Vars }} sudo -E sh '{{ .Path }}'",
+		"inline": [
+				"mkdir -p  {{user `os_script_dst`}}/{chef,nxm,role,script}",
+				"chmod a+w {{user `os_script_dst`}}/{chef,nxm,role,script}"
+		]
+	},
+	{
+		"type": "file",
+		"source": "{{user `user_script_src`}}/",
+		"destination": "{{user `os_script_dst`}}/",
+		"direction": "upload"
+	},
+	{
+		"type": "file",
+		"source": "{{user `os_script_src`}}/",
+		"destination": "{{user `os_script_dst`}}/script",
+		"direction": "upload"
+	},
+	{
+		"type": "shell",
+		"execute_command": "chmod +x {{ .Path }}; {{ .Vars }} sudo -E sh '{{ .Path }}'",
+		"environment_vars": [
+			"PREFIX={{user `prefix`}}",
+			"STORAGE_KEY={{user `storage_key`}}",
+			"STORAGE_ACCOUNT={{user `storage_account`}}",
+			"NKMAN_PASS={{user `nkman_pass`}}",
+			"SEUSER={{user `se_username`}}",
+			"DBAUSER={{user `dba_username`}}",
+			"DEVUSER={{user `dev_username`}}"
+		],
+		"inline": [
+			"sh {{user `os_script_dst`}}/script/common/common_{{user `platform`}}_{{user `role`}}.sh",
+			"sh {{user `os_script_dst`}}/script/package/install_{{user `platform`}}_{{user `role`}}.sh",
+			"sh {{user `os_script_dst`}}/script/common/report.sh  2>&1 | tee /maxwell/OS_Build_Report.txt"
+	]
+	},
+	{
+	"type": "shell",
+	"execute_command": "chmod +x {{ .Path }}; {{ .Vars }} sudo -E sh '{{ .Path }}'",
+    "inline": [
+          "/usr/sbin/waagent -force -deprovision+user && export HISTSIZE=0 && sync"
+  		  ],
+    "inline_shebang": "/bin/sh -x"
+  	}
+  ]
+}

@@ -1,0 +1,66 @@
+#!/bin/sh
+# set -x
+# set -n
+
+ALERTMsg(){
+if test "$1" -ne 0
+ then echo "Warn: [LineNum: $2] - [ $3 ] - did not complete successfully" >&2; exit $1;
+fi
+}
+
+rFILE="${HOME}/.econ/EC2QueryRES.work.log"
+
+[[ ! -f ${rFILE} ]] && ALERTMsg "1" $LINENO "CHECK: EC2QueryRES.work.log";
+
+IFS=$'\n'
+for rLINE in $(cat ${rFILE}); do
+         NUM=`echo ${rLINE} | awk -F" " '{print $1}'`
+        TYPE=`echo ${rLINE} | awk -F" " '{print $2}'`
+          IP=`echo ${rLINE} | awk -F" " '{print $3}'`
+        HOST=`echo ${rLINE} | awk -F" " '{print $4}'`
+ test "`echo ${NUM} | grep '^#'`" && continue
+ echo "[${NUM}]-${HOST}(${TYPE})"
+done
+
+echo "#---------------------------------"
+echo -n "> input Number: "
+read cNUM
+
+cUSER="${USER}"
+echo "#---------------------------------"
+#### HOST/IP
+SSHCONN=I
+SSHUSER=nkman
+cNUMLEN=$(echo ${#cNUM})
+cUSERLEN=$(echo ${#cUSER})
+
+  [[ cNUMLEN -lt 0 ]] && ALERTMsg "1" $LINENO "CHECK: cNUMLEN -lt 0";
+  [[ cNUMLEN -gt 3 ]] && ALERTMsg "1" $LINENO "CHECK: cNUMLEN -gt 3";
+  [[ cUSERLEN -lt 0 ]] && ALERTMsg "1" $LINENO "CHECK: cUSERLEN -lt 0";
+! [[ ${cNUM} =~ ^[0-9]+$ ]] && ALERTMsg "1" $LINENO "CHECK: cNUM [0-9]";
+
+IFS=$'\n'
+for rLINE in $(cat ${rFILE}); do
+   NUM=`echo ${rLINE} | awk -F" " '{print $1}'`
+  TYPE=`echo ${rLINE} | awk -F" " '{print $2}'`
+        IP=`echo ${rLINE} | awk -F" " '{print $3}'`
+  HOST=`echo ${rLINE} | awk -F" " '{print $4}'`
+ test "`echo ${NUM} | grep '^#'`" && continue
+
+        if [ ${NUM} = ${cNUM} ]
+        then
+        case ${SSHCONN} in
+                "H")
+                                echo "#.TARGET SVR - HOST: ${HOST} / IP: ${IP} Connected..."
+        test -n ${IP} && ssh $cUSER@${IP}
+        break
+                ;;
+        "I")
+                echo "#.TARGET SVR - HOST: ${HOST} / IP: ${IP} Connected..."
+                                test -n ${IP} && ssh $cUSER@${IP}
+        break
+                        ;;
+                esac
+        fi
+done
+
